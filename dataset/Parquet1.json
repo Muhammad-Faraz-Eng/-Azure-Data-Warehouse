@@ -1,5 +1,5 @@
 {
-	"name": "Parquet_ds",
+	"name": "Parquet1",
 	"properties": {
 		"linkedServiceName": {
 			"referenceName": "datalake_ls",
@@ -10,8 +10,8 @@
 		"typeProperties": {
 			"location": {
 				"type": "AzureBlobFSLocation",
-				"folderPath": "sales",
-				"fileSystem": "bronze"
+				"folderPath": "enrichedSales",
+				"fileSystem": "silver"
 			},
 			"compressionCodec": "snappy"
 		},
