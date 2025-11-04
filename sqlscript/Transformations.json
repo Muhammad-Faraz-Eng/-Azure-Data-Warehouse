@@ -1,8 +1,8 @@
 {
-	"name": "SQL script 1",
+	"name": "Transformations",
 	"properties": {
 		"content": {
-			"query": "SELECT * from silver.silverTable",
+			"query": "SELECT * from\nOPENROWSET\n(\n    BULK 'enrichedSales',\n    DATA_SOURCE = 'silver_source',\n    FORMAT = 'Parquet'\n)\nWITH\n(\n    Order_ID VARCHAR(100) 1\n)as query1",
 			"metadata": {
 				"language": "sql"
 			},
