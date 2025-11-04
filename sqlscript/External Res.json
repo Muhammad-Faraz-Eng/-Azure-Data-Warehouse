@@ -2,12 +2,12 @@
 	"name": "External Res",
 	"properties": {
 		"content": {
-			"query": "",
+			"query": "-- Creating Master key\n-- create MASTER key ENCRYPTION by PASSWORD = ''\n\n-- Database Scoped Creds\n\ncreate DATABASE scoped CREDENTIAL faraz_creds\nwith IDENTITY = 'Managed Identity'\n\n-- External Data source silver\n\ncreate external data source silver_source \nwith\n(\n     LOCATION = 'https://farazdatalakeforsynapse.dfs.core.windows.net/silver/',\n     CREDENTIAL = faraz_creds\n)\n\n\n-- External Data source gold\n\ncreate external data source gold_source \nwith\n(\n     LOCATION = 'https://farazdatalakeforsynapse.dfs.core.windows.net/gold/',\n     CREDENTIAL = faraz_creds\n)\n\n\n-- Creating External file format\nCREATE EXTERNAL FILE FORMAT parquet\nWITH\n(\n    FORMAT_TYPE = Parquet,\n    DATA_COMPRESSION = 'org.apache.hadoop.io.compress.SnappyCodec'\n\n)\n\n\nCREATE EXTERNAL FILE FORMAT delta\nWITH\n(\n    FORMAT_TYPE = DELTA\n\n)\n\n\n\n\n",
 			"metadata": {
 				"language": "sql"
 			},
 			"currentConnection": {
-				"databaseName": "master",
+				"databaseName": "salesdwh",
 				"poolName": "Built-in"
 			},
 			"resultLimit": 5000
