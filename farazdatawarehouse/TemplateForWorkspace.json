@@ -7,10 +7,30 @@
 			"metadata": "Workspace name",
 			"defaultValue": "farazdatawarehouse"
 		},
+		"AzureSynapseAnalytics1_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'AzureSynapseAnalytics1'"
+		},
 		"farazdatawarehouse-WorkspaceDefaultSqlServer_connectionString": {
 			"type": "secureString",
 			"metadata": "Secure string for 'connectionString' of 'farazdatawarehouse-WorkspaceDefaultSqlServer'",
 			"defaultValue": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:farazdatawarehouse.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
+		},
+		"AzureDataLakeStorage1_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://farazdatalakeforsynapse.dfs.core.windows.net/"
+		},
+		"AzureSynapseAnalytics1_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "farazdatawarehouse-ondemand.sql.azuresynapse.net"
+		},
+		"AzureSynapseAnalytics1_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "salesdwh"
+		},
+		"AzureSynapseAnalytics1_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "faraz"
 		},
 		"datalake_ls_properties_typeProperties_url": {
 			"type": "string",
@@ -34,6 +54,8 @@
 					{
 						"name": "data transformation",
 						"type": "ExecuteDataFlow",
+						"state": "Inactive",
+						"onInactiveMarkAs": "Succeeded",
 						"dependsOn": [],
 						"policy": {
 							"timeout": "0.12:00:00",
@@ -60,6 +82,42 @@
 							},
 							"traceLevel": "Fine"
 						}
+					},
+					{
+						"name": "silver_table",
+						"type": "Script",
+						"dependsOn": [
+							{
+								"activity": "data transformation",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "AzureSynapseAnalytics1",
+							"type": "LinkedServiceReference"
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "Query",
+									"text": {
+										"value": "if not EXISTS (select * from sys.tables t join sys.schemas s \non t.schema_id = s.schema_id\nwhere t.name = 'SilverTable' AND s.name = 'silver')\n\n    CREATE EXTERNAL TABLE silver.SilverTable\n    ( \n        OrderID VARCHAR(100),\n        OrderDate DATETIME2,\n        CustomerID VARCHAR(100),\n        CustomerName VARCHAR(100),\n        CustomerEmail VARCHAR(100),\n        ProductID VARCHAR(100),\n        ProductName VARCHAR(100),\n        ProductCategory VARCHAR(100),\n        RegionID VARCHAR(100),\n        Country VARCHAR(100),\n        Quantity VARCHAR(100),\n        UnitPrice INT,\n        TotalAmount INT,\n        Domain VARCHAR(100)\n    )\n    WITH\n    (\n        LOCATION = 'enrichedSales',\n        DATA_SOURCE = silver_source,\n        FILE_FORMAT = parquet\n    )",
+										"type": "Expression"
+									}
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
 					}
 				],
 				"policy": {
@@ -68,8 +126,8 @@
 				"annotations": []
 			},
 			"dependsOn": [
-				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]",
-				"[concat(variables('workspaceId'), '/dataflows/Dataflow')]"
+				"[concat(variables('workspaceId'), '/dataflows/Dataflow')]",
+				"[concat(variables('workspaceId'), '/linkedServices/AzureSynapseAnalytics1')]"
 			]
 		},
 		{
@@ -318,6 +376,31 @@
 			]
 		},
 		{
+			"name": "[concat(parameters('workspaceName'), '/Parquet1')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "datalake_ls",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "enrichedSales",
+						"fileSystem": "silver"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/datalake_ls')]"
+			]
+		},
+		{
 			"name": "[concat(parameters('workspaceName'), '/Parquet_ds')]",
 			"type": "Microsoft.Synapse/workspaces/datasets",
 			"apiVersion": "2019-06-01-preview",
@@ -368,6 +451,53 @@
 			},
 			"dependsOn": [
 				"[concat(variables('workspaceId'), '/linkedServices/datalake_ls')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/AzureDataLakeStorage1')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('AzureDataLakeStorage1_properties_typeProperties_url')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/AzureSynapseAnalytics1')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"server": "[parameters('AzureSynapseAnalytics1_properties_typeProperties_server')]",
+					"database": "[parameters('AzureSynapseAnalytics1_properties_typeProperties_database')]",
+					"encrypt": "optional",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('AzureSynapseAnalytics1_properties_typeProperties_userName')]",
+					"password": {
+						"type": "SecureString",
+						"value": "[parameters('AzureSynapseAnalytics1_password')]"
+					}
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
 			]
 		},
 		{
@@ -452,16 +582,6 @@
 			"dependsOn": []
 		},
 		{
-			"name": "[concat(parameters('workspaceName'), '/WorkspaceSystemIdentity')]",
-			"type": "Microsoft.Synapse/workspaces/credentials",
-			"apiVersion": "2019-06-01-preview",
-			"properties": {
-				"type": "ManagedIdentity",
-				"typeProperties": {}
-			},
-			"dependsOn": []
-		},
-		{
 			"name": "[concat(parameters('workspaceName'), '/Dataflow')]",
 			"type": "Microsoft.Synapse/workspaces/dataflows",
 			"apiVersion": "2019-06-01-preview",
@@ -538,29 +658,114 @@
 			]
 		},
 		{
-			"name": "[concat(parameters('workspaceName'), '/Parquet1')]",
-			"type": "Microsoft.Synapse/workspaces/datasets",
+			"name": "[concat(parameters('workspaceName'), '/WorkspaceSystemIdentity')]",
+			"type": "Microsoft.Synapse/workspaces/credentials",
 			"apiVersion": "2019-06-01-preview",
 			"properties": {
-				"linkedServiceName": {
-					"referenceName": "datalake_ls",
-					"type": "LinkedServiceReference"
-				},
-				"annotations": [],
-				"type": "Parquet",
-				"typeProperties": {
-					"location": {
-						"type": "AzureBlobFSLocation",
-						"folderPath": "enrichedSales",
-						"fileSystem": "silver"
-					},
-					"compressionCodec": "snappy"
-				},
-				"schema": []
+				"type": "ManagedIdentity",
+				"typeProperties": {}
 			},
-			"dependsOn": [
-				"[concat(variables('workspaceId'), '/linkedServices/datalake_ls')]"
-			]
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Dimensions')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "-- DimCustomers\n-- First check if table exists, if not then create\nIF NOT EXISTS (\n    SELECT 1 \n    FROM sys.tables t\n    JOIN sys.schemas s ON t.schema_id = s.schema_id\n    WHERE t.name = 'DimCustomer' \n      AND s.name = 'gold'\n)\nBEGIN\n    CREATE EXTERNAL TABLE gold.DimCustomer\n    WITH\n    (\n        LOCATION = 'DimCustomer',\n        DATA_SOURCE = gold_source,\n        FILE_FORMAT = parquet\n    )\n    AS\n    select * , ROW_NUMBER() OVER (ORDER BY T.CustomerID) AS DimCustomerKey\n    from\n    (\n    SELECT DISTINCT\n        CustomerID,\n        CustomerName,\n        CustomerEmail,\n        Domain\n    FROM \n    silver.silverTable\n    ) T\nEND;\nselect * from gold.DimCustomer\n\n\n-- DimProducts\n-- First check if table exists, if not then create\nIF NOT EXISTS (\n    SELECT 1 \n    FROM sys.tables t\n    JOIN sys.schemas s ON t.schema_id = s.schema_id\n    WHERE t.name = 'DimProduct' \n      AND s.name = 'gold'\n)\nBEGIN\n    CREATE EXTERNAL TABLE gold.DimProduct\n    WITH\n    (\n        LOCATION = 'DimProduct',\n        DATA_SOURCE = gold_source,\n        FILE_FORMAT = parquet\n    )\n    AS\n    select *,    ROW_NUMBER() OVER (ORDER BY T.ProductID) AS DimProductKey\n    FROM\n    (\n    SELECT DISTINCT\n        ProductID,\n        ProductName,\n        ProductCategory\n    FROM silver.silverTable\n    ) T\nEND;\nSELECT * FROM gold.DimProduct\n\n\n\n\n-- DimGeoGraphy\nIF NOT EXISTS (\n    SELECT 1 \n    FROM sys.tables t\n    JOIN sys.schemas s ON t.schema_id = s.schema_id\n    WHERE t.name = 'DimGeography' \n      AND s.name = 'gold'\n)\nBEGIN\n    CREATE EXTERNAL TABLE gold.DimGeography\n    WITH\n    (\n        LOCATION = 'DimGeography',\n        DATA_SOURCE = gold_source,\n        FILE_FORMAT = parquet\n    )\n    AS\n    select *,  ROW_NUMBER() OVER (ORDER BY T.RegionID) AS DimGeographyKey\n    FROM\n    (\n    SELECT \n        RegionID,\n        Country\n    FROM silver.silverTable\n    ) T\nEND;\nSELECT * FROM gold.DimGeography\n\n\n\n-- DimOrders\n-- First check if table exists, if not then create\nIF NOT EXISTS (\n    SELECT 1 \n    FROM sys.tables t\n    JOIN sys.schemas s ON t.schema_id = s.schema_id\n    WHERE t.name = 'DimOrders' \n      AND s.name = 'gold'\n)\nBEGIN\n    CREATE EXTERNAL TABLE gold.DimOrders\n    WITH\n    (\n        LOCATION = 'DimOrders',\n        DATA_SOURCE = gold_source,\n        FILE_FORMAT = parquet\n    )\n    AS\n    SELECT \n        DISTINCT\n        OrderID,\n        CustomerID,\n        CustomerName,\n        CustomerEmail,\n        ProductID,\n        ProductName,\n        ProductCategory,\n        Domain,\n        RegionID,\n        Country,\n        ROW_NUMBER() OVER (ORDER BY CustomerID) AS DimOrdersKey\n    FROM silver.silverTable;\nEND;\nSELECT * FROM gold.DimOrders\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "salesdwh",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/External Res')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "-- Creating Master key\n-- create MASTER key ENCRYPTION by PASSWORD = ''\n\n-- Database Scoped Creds\n\ncreate DATABASE scoped CREDENTIAL faraz_creds\nwith IDENTITY = 'Managed Identity'\n\n-- External Data source silver\n\ncreate external data source silver_source \nwith\n(\n     LOCATION = 'https://farazdatalakeforsynapse.dfs.core.windows.net/silver/',\n     CREDENTIAL = faraz_creds\n)\n\n\n-- External Data source gold\n\ncreate external data source gold_source \nwith\n(\n     LOCATION = 'https://farazdatalakeforsynapse.dfs.core.windows.net/gold/',\n     CREDENTIAL = faraz_creds\n)\n\n\n-- Creating External file format\nCREATE EXTERNAL FILE FORMAT parquet\nWITH\n(\n    FORMAT_TYPE = Parquet,\n    DATA_COMPRESSION = 'org.apache.hadoop.io.compress.SnappyCodec'\n\n)\n\n\nCREATE EXTERNAL FILE FORMAT delta\nWITH\n(\n    FORMAT_TYPE = DELTA\n\n)\n\n\n\n\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "salesdwh",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Facts')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "-- FactTable\nIF NOT EXISTS (\n    SELECT 1 \n    FROM sys.tables t\n    JOIN sys.schemas s ON t.schema_id = s.schema_id\n    WHERE t.name = 'FactTable' \n      AND s.name = 'gold'\n)\nBEGIN\n    CREATE EXTERNAL TABLE gold.FactTable\n    WITH\n    (\n        LOCATION = 'FactTable',\n        DATA_SOURCE = gold_source,\n        FILE_FORMAT = parquet\n    )\n    AS\n    SELECT \n        O.DimOrdersKey,\n        C.DimCustomerKey,\n        G.DimGeographyKey,\n        P.DimProductKey,\n        F.Quantity,\n        F.UnitPrice,\n        F.TotalAmount\n    FROM silver.silverTable F\n    LEFT JOIN gold.DimOrders O \n        ON F.OrderID = O.OrderID\n    LEFT JOIN gold.DimCustomer C \n        ON F.CustomerID = C.CustomerID\n    LEFT JOIN gold.DimProduct P \n        ON F.ProductID = P.ProductID\n    LEFT JOIN gold.DimGeography G \n        ON F.RegionID = G.RegionID AND F.Country = G.Country;\nEND;\n\nSELECT * FROM gold.FactTable;\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "salesdwh",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Transformations')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "SELECT * from\nOPENROWSET\n(\n    BULK 'enrichedSales',\n    DATA_SOURCE = 'silver_source',\n    FORMAT = 'Parquet'\n)\nWITH\n(\n    Order_ID VARCHAR(100) 1\n)as query1\n\n\n\nCREATE LOGIN faraz WITH PASSWORD = 'StrongPassword@123';\n\n\nCREATE USER faraz FOR LOGIN faraz;\nALTER ROLE db_datareader ADD MEMBER faraz;\nALTER ROLE db_datawriter ADD MEMBER faraz;\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "salesdwh",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/silverTables')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "\n\nif not EXISTS (select * from sys.tables t join sys.schemas s \non t.schema_id = s.schema_id\nwhere t.name = 'SilverTable' AND s.name = 'silver')\n\n    CREATE EXTERNAL TABLE silver.SilverTable\n    ( \n        OrderID VARCHAR(100),\n        OrderDate DATETIME2,\n        CustomerID VARCHAR(100),\n        CustomerName VARCHAR(100),\n        CustomerEmail VARCHAR(100),\n        ProductID VARCHAR(100),\n        ProductName VARCHAR(100),\n        ProductCategory VARCHAR(100),\n        RegionID VARCHAR(100),\n        Country VARCHAR(100),\n        Quantity VARCHAR(100),\n        UnitPrice INT,\n        TotalAmount INT,\n        Domain VARCHAR(100)\n    )\n    WITH\n    (\n        LOCATION = 'enrichedSales',\n        DATA_SOURCE = silver_source,\n        FILE_FORMAT = parquet\n    )\n\n\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "salesdwh",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
 		}
 	]
 }
