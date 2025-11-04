@@ -2,7 +2,7 @@
 	"name": "Transformations",
 	"properties": {
 		"content": {
-			"query": "SELECT * from\nOPENROWSET\n(\n    BULK 'enrichedSales',\n    DATA_SOURCE = 'silver_source',\n    FORMAT = 'Parquet'\n)\nWITH\n(\n    Order_ID VARCHAR(100) 1\n)as query1",
+			"query": "SELECT * from\nOPENROWSET\n(\n    BULK 'enrichedSales',\n    DATA_SOURCE = 'silver_source',\n    FORMAT = 'Parquet'\n)\nWITH\n(\n    Order_ID VARCHAR(100) 1\n)as query1\n\n\n\nCREATE LOGIN faraz WITH PASSWORD = 'StrongPassword@123';\n\n\nCREATE USER faraz FOR LOGIN faraz;\nALTER ROLE db_datareader ADD MEMBER faraz;\nALTER ROLE db_datawriter ADD MEMBER faraz;\n",
 			"metadata": {
 				"language": "sql"
 			},
