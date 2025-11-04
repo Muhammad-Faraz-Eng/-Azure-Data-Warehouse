@@ -1,0 +1,17 @@
+{
+	"name": "Dimensions",
+	"properties": {
+		"content": {
+			"query": "-- First check if table exists, if not then create\nIF NOT EXISTS (\n    SELECT 1 \n    FROM sys.tables t\n    JOIN sys.schemas s ON t.schema_id = s.schema_id\n    WHERE t.name = 'DimCustomer' \n      AND s.name = 'gold'\n)\nBEGIN\n    CREATE EXTERNAL TABLE gold.DimCustomer\n    WITH\n    (\n        LOCATION = 'DimCustomer',\n        DATA_SOURCE = gold_source,\n        FILE_FORMAT = parquet\n    )\n    AS\n    SELECT DISTINCT\n        CustomerID,\n        CustomerName,\n        CustomerEmail,\n        Domain,\n        ROW_NUMBER() OVER (ORDER BY CustomerID) AS DimCustomerKey\n    FROM silver.silverTable;\nEND;\n\n\n\nSELECT * FROM gold.DimCustomer\n",
+			"metadata": {
+				"language": "sql"
+			},
+			"currentConnection": {
+				"databaseName": "salesdwh",
+				"poolName": "Built-in"
+			},
+			"resultLimit": 5000
+		},
+		"type": "SqlQuery"
+	}
+}
